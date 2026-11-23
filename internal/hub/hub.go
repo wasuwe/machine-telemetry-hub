@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"machine-telemetry-hub/internal/oee"
-	"machine-telemetry-hub/internal/telemetry"
+	"github.com/wasuwe/machine-telemetry-hub/internal/oee"
+	"github.com/wasuwe/machine-telemetry-hub/internal/telemetry"
 )
 
 // MachineSnapshot is the live view of one machine.

@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"machine-telemetry-hub/internal/telemetry"
+	"github.com/wasuwe/machine-telemetry-hub/internal/telemetry"
 )
 
 // Config controls how machines behave.

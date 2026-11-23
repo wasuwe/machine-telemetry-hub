@@ -9,7 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"machine-telemetry-hub/internal/hub"
+	"github.com/wasuwe/machine-telemetry-hub/internal/hub"
 )
 
 //go:embed static

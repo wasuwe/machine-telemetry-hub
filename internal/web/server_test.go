@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"machine-telemetry-hub/internal/hub"
-	"machine-telemetry-hub/internal/telemetry"
+	"github.com/wasuwe/machine-telemetry-hub/internal/hub"
+	"github.com/wasuwe/machine-telemetry-hub/internal/telemetry"
 )
 
 func newTestServer(t *testing.T) (*httptest.Server, *hub.Hub) {

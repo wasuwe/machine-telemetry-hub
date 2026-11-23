@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"machine-telemetry-hub/internal/telemetry"
+	"github.com/wasuwe/machine-telemetry-hub/internal/telemetry"
 )
 
 // fakeClock lets tests control "now".

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"machine-telemetry-hub/internal/telemetry"
+	"github.com/wasuwe/machine-telemetry-hub/internal/telemetry"
 )
 
 func TestDefaultMachines(t *testing.T) {
