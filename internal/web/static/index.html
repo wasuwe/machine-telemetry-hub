@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Machine Telemetry Hub</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <h1>Machine Telemetry Hub</h1>
+    <span class="sub">Live OEE · Press line</span>
+  </div>
+  <div class="conn" id="conn"><span class="dot"></span><span id="conn-text">Connecting…</span></div>
+</header>
+
+<section class="kpis" aria-label="Plant summary">
+  <div class="kpi kpi-main">
+    <span class="kpi-label">Plant OEE</span>
+    <span class="kpi-value" id="k-oee">–</span>
+  </div>
+  <div class="kpi"><span class="kpi-label">Running</span><span class="kpi-value s-running" id="k-running">–</span></div>
+  <div class="kpi"><span class="kpi-label">Idle</span><span class="kpi-value s-idle" id="k-idle">–</span></div>
+  <div class="kpi"><span class="kpi-label">Down</span><span class="kpi-value s-down" id="k-down">–</span></div>
+  <div class="kpi"><span class="kpi-label">Parts</span><span class="kpi-value" id="k-total">–</span></div>
+  <div class="kpi"><span class="kpi-label">Good rate</span><span class="kpi-value" id="k-good">–</span></div>
+</section>
+
+<main class="grid" id="grid"></main>
+
+<template id="card-tpl">
+  <article class="card">
+    <header class="card-head">
+      <div>
+        <h2 class="name"></h2>
+        <span class="since"></span>
+      </div>
+      <span class="badge"></span>
+    </header>
+    <div class="oee">
+      <span class="oee-value"></span>
+      <span class="oee-label">OEE</span>
+    </div>
+    <div class="factors">
+      <div class="factor" data-f="availability"><span>A</span><div class="bar"><i></i></div><b></b></div>
+      <div class="factor" data-f="performance"><span>P</span><div class="bar"><i></i></div><b></b></div>
+      <div class="factor" data-f="quality"><span>Q</span><div class="bar"><i></i></div><b></b></div>
+    </div>
+    <footer class="card-foot">
+      <span><b class="parts"></b> parts</span>
+      <span class="cycle"></span>
+    </footer>
+  </article>
+</template>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+# Build output
+/bin/
+/dist/
+*.exe
+telemetryhub
+
+# Test / coverage
+*.test
+*.out
+coverage.*
+
+# Local AI assistant settings
+.claude/
+CLAUDE.md
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
