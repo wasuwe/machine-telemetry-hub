@@ -2,7 +2,7 @@
 /bin/
 /dist/
 *.exe
-telemetryhub
+/telemetryhub
 
 # Test / coverage
 *.test
