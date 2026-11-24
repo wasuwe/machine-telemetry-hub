@@ -15,6 +15,7 @@ import (
 
 	"github.com/wasuwe/machine-telemetry-hub/internal/hub"
 	"github.com/wasuwe/machine-telemetry-hub/internal/simulator"
+	"github.com/wasuwe/machine-telemetry-hub/internal/store"
 	"github.com/wasuwe/machine-telemetry-hub/internal/telemetry"
 	"github.com/wasuwe/machine-telemetry-hub/internal/web"
 )
@@ -38,14 +39,27 @@ func run(addr string, count int, seed uint64) error {
 
 	machines := simulator.DefaultMachines(count)
 	h := hub.New(machines, time.Now)
+	st := store.New(500) // demo "database": the last 500 readings, in memory
+	raw := make(chan telemetry.Event, 256)
 	events := make(chan telemetry.Event, 256)
 
-	go simulator.New(machines, seed).Run(ctx, events)
+	go simulator.New(machines, seed).Run(ctx, raw)
+	go func() { // write every reading to the store, then pass it on to the hub
+		defer close(events)
+		for e := range raw {
+			st.Add(e)
+			select {
+			case events <- e:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 	go h.Run(ctx, events, time.Second)
 
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           web.NewHandler(h),
+		Handler:           web.NewHandler(h, st),
 		ReadHeaderTimeout: 5 * time.Second,
 		// Request contexts derive from ctx, so open SSE streams end on shutdown.
 		BaseContext: func(net.Listener) context.Context { return ctx },

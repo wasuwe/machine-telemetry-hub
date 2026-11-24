@@ -158,10 +158,142 @@ body {
 }
 .card-foot b { color: var(--text); }
 
+/* ---- Data path: machine -> IoT sensor -> gateway -> database -> dashboard ---- */
+.pipe {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 16px 16px;
+  margin-bottom: 20px;
+}
+.pipe-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; margin-bottom: 14px; }
+.pipe-head h2 { margin: 0; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; font-weight: 600; }
+.pipe-note { margin: 0; color: var(--muted); font-size: 12px; max-width: 80ch; }
+
+.pipe-body { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; align-items: stretch; }
+
+.pipe-flow {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 18px;
+  align-content: center;
+  padding-top: 32px; /* lane the readings travel along, above the nodes */
+}
+/* the wire, drawn through the middle of the lane */
+.pipe-flow::before {
+  content: "";
+  position: absolute;
+  left: calc(10% - 7.2px); /* centre of the first of 5 columns with 18px gaps */
+  right: calc(10% - 7.2px);
+  top: var(--lane, 14px);
+  border-top: 2px dashed var(--line);
+}
+.node {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+  padding: 12px 6px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  transition: border-color .3s, box-shadow .3s;
+}
+/* stub from the wire down to each node */
+.node::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  height: 18px;
+  border-left: 2px dashed var(--line);
+}
+.node svg {
+  width: 26px;
+  height: 26px;
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 2;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  margin-bottom: 2px;
+}
+.node b { font-size: 13px; font-weight: 600; }
+.node > span { color: var(--muted); font-size: 11px; line-height: 1.3; font-variant-numeric: tabular-nums; }
+.node[data-node="db"] { border-color: var(--accent); }
+.node[data-node="db"] svg { stroke: var(--accent); }
+.node.hit { box-shadow: 0 0 0 3px var(--running-halo); }
+.node[data-node="app"].hit { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+
+/* one reading in flight */
+.packet {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .3px;
+  color: var(--bg);
+  background: var(--running);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.packet.scrap, .packet.s-DOWN { background: var(--down); }
+.packet.s-IDLE { background: var(--idle); }
+.packet.s-RUNNING { background: var(--running); outline: 2px solid var(--panel); }
+.packet.query { background: var(--accent); }
+
+.pipe-table { min-width: 0; }
+.pipe-table h3 { margin: 0 0 6px; font-size: 12px; font-weight: 600; }
+.pipe-table h3 span { color: var(--muted); font-weight: 400; }
+.pipe-table table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.pipe-table th { text-align: left; color: var(--muted); font-weight: 500; padding: 3px 6px; border-bottom: 1px solid var(--line); }
+.pipe-table td { padding: 3px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 0; }
+.pipe-table td:first-child, .pipe-table th:first-child { color: var(--muted); width: 3.5em; }
+.pipe-table th:nth-child(2) { width: 8.2em; }
+.pipe-table th:nth-child(3) { width: 6em; }
+.pipe-table tr.new td { animation: row-in 1.2s ease-out; }
+@keyframes row-in { from { background: color-mix(in srgb, var(--accent) 22%, transparent); } to { background: transparent; } }
+.v-good { color: var(--running); }
+.v-scrap, .v-DOWN { color: var(--down); }
+.v-IDLE { color: var(--idle); }
+.v-RUNNING { color: var(--running); }
+
+/* IoT chip on each machine card */
+.head-right { display: flex; align-items: center; gap: 6px; }
+.iot { display: inline-flex; }
+.iot svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 2;
+  stroke-linecap: square;
+  transition: stroke .15s;
+}
+.iot.tx svg { stroke: var(--accent); }
+
+@media (prefers-reduced-motion: reduce) {
+  .pipe-table tr.new td { animation: none; }
+  .node, .iot svg { transition: none; }
+}
+
 @media (max-width: 900px) {
   .kpis { grid-template-columns: repeat(3, 1fr); }
+  .pipe-body { grid-template-columns: 1fr; }
 }
 @media (max-width: 520px) {
   .kpis { grid-template-columns: repeat(2, 1fr); }
   .top { flex-direction: column; align-items: flex-start; }
+  .pipe-flow { grid-template-columns: 1fr; gap: 12px; padding-top: 0; padding-left: 40px; }
+  .pipe-flow::before { left: var(--lane, 14px); right: auto; top: 22px; bottom: 22px; border-top: 0; border-left: 2px dashed var(--line); }
+  .node { flex-direction: row; justify-content: flex-start; gap: 8px; text-align: left; }
+  .node::before { left: auto; right: 100%; bottom: auto; top: 50%; height: 0; width: 24px; border-left: 0; border-top: 2px dashed var(--line); }
+  .node svg { margin: 0; }
 }

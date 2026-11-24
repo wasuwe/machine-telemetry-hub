@@ -8,8 +8,10 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"strconv"
 
 	"github.com/wasuwe/machine-telemetry-hub/internal/hub"
+	"github.com/wasuwe/machine-telemetry-hub/internal/store"
 )
 
 //go:embed static
@@ -19,9 +21,10 @@ var staticFiles embed.FS
 //
 //	GET /              dashboard (static files embedded in the binary)
 //	GET /api/machines  current snapshot as JSON
+//	GET /api/readings  stored rows with id > ?after (at most ?limit, default 50)
 //	GET /events        live snapshots via Server-Sent Events
 //	GET /healthz       liveness probe
-func NewHandler(h *hub.Hub) http.Handler {
+func NewHandler(h *hub.Hub, st *store.Store) http.Handler {
 	static, err := fs.Sub(staticFiles, "static")
 	if err != nil {
 		panic(err) // only fails if the embed path is wrong: a programming error
@@ -30,16 +33,29 @@ func NewHandler(h *hub.Hub) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("GET /", http.FileServerFS(static))
 	mux.HandleFunc("GET /api/machines", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		if err := json.NewEncoder(w).Encode(h.Snapshot()); err != nil {
-			slog.Warn("encode snapshot", "err", err)
+		writeJSON(w, h.Snapshot())
+	})
+	mux.HandleFunc("GET /api/readings", func(w http.ResponseWriter, r *http.Request) {
+		after, _ := strconv.ParseInt(r.URL.Query().Get("after"), 10, 64)
+		limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
+		if err != nil || limit < 1 || limit > 200 {
+			limit = 50
 		}
+		writeJSON(w, map[string]any{"total": st.Total(), "rows": st.After(after, limit)})
 	})
 	mux.HandleFunc("GET /events", func(w http.ResponseWriter, r *http.Request) { serveEvents(w, r, h) })
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "ok")
 	})
 	return mux
+}
+
+func writeJSON(w http.ResponseWriter, v any) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		slog.Warn("encode json", "err", err)
+	}
 }
 
 func serveEvents(w http.ResponseWriter, r *http.Request, h *hub.Hub) {

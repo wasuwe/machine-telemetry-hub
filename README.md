@@ -12,6 +12,10 @@ The app simulates 12 stamping presses (80T to 400T). Each one cycles, makes good
 and now and then breaks down or waits for material. The dashboard updates once a second and shows:
 
 - **Plant summary:** average OEE, how many machines are running, idle or down, total parts, and good rate.
+- **Data path:** an animation of where the numbers come from. Each reading travels from the press
+  through its IoT sensor and a gateway into the database. Once a second the dashboard reads the new
+  rows back, and the latest rows are listed next to it. Green is a good part, red is scrap or a breakdown,
+  amber is a machine going idle.
 - **One card per machine:** current state and how long it has been in it, OEE, the three factors
   (Availability, Performance, Quality) as bars, part count, and the last cycle time.
 
@@ -45,10 +49,13 @@ An 18-icon line set for factory UIs lives in `internal/web/static/icons/` (see i
  ┌───────────┐
  │ Press 01  │──┐
  ├───────────┤  │  events      ┌───────────┐  snapshot / 1s   ┌──────────────┐
- │ Press 02  │──┼────────────▶ │    Hub    │ ───────────────▶ │  Browser(s)  │
- ├───────────┤  │  (channel)   │ OEE state │    (SSE fan-out) │  dashboard   │
- │   ...     │──┘              └───────────┘                  └──────────────┘
- └───────────┘
+ │ Press 02  │──┼──────┬─────▶ │    Hub    │ ───────────────▶ │  Browser(s)  │
+ ├───────────┤  │      │       │ OEE state │    (SSE fan-out) │  dashboard   │
+ │   ...     │──┘      │       └───────────┘                  └──────────────┘
+ └───────────┘         │       ┌───────────┐  new rows / 1s           ▲
+                       └─────▶ │   Store   │ ─────────────────────────┘
+                               │ last 500  │  (GET /api/readings)
+                               └───────────┘
  1 goroutine per machine
 ```
 
@@ -60,8 +67,12 @@ An 18-icon line set for factory UIs lives in `internal/web/static/icons/` (see i
    counters, current state, and running time. Once a second it computes OEE for every machine
    and sends the snapshot to every connected browser. If a browser is still busy with the previous
    snapshot, it skips this one, so one slow client can't hold up the hub.
-3. **OEE** (`internal/oee`): plain functions with no state, covered by unit tests.
-4. **Web** (`internal/web`): `net/http` with Go 1.22+ routing. `/events` streams the snapshots as
+3. **Store** (`internal/store`): every event is also written to a table that keeps the last 500
+   readings in memory. It stands in for a real database (PostgreSQL, TimescaleDB, InfluxDB) so the
+   demo has nothing to install. `/api/readings?after=<id>` returns the rows written since a given ID,
+   which is what the data path animation reads every second.
+4. **OEE** (`internal/oee`): plain functions with no state, covered by unit tests.
+5. **Web** (`internal/web`): `net/http` with Go 1.22+ routing. `/events` streams the snapshots as
    Server-Sent Events. The browser uses `EventSource`, which reconnects on its own if the connection drops.
 
 `Ctrl+C` cancels one `context`. That stops the machines, the hub, and the open SSE streams, then the HTTP server shuts down.
@@ -107,6 +118,7 @@ docker run --rm -p 8080:8080 telemetryhub
 |--------|------|-------------|
 | GET | `/` | Dashboard |
 | GET | `/api/machines` | Current snapshot (JSON) |
+| GET | `/api/readings?after=<id>&limit=<n>` | Stored readings with ID > `after`, oldest first (default 50, max 200) |
 | GET | `/events` | Live snapshots (Server-Sent Events) |
 | GET | `/healthz` | Liveness probe |
 
@@ -133,6 +145,7 @@ cmd/telemetryhub/     main: flags, wiring, graceful shutdown
 internal/telemetry/   event and machine types
 internal/simulator/   fake machines (goroutine per machine)
 internal/hub/         live state, OEE snapshots, pub/sub
+internal/store/       in-memory table of the last 500 readings (demo database)
 internal/oee/         OEE calculation
 internal/web/         HTTP handlers + embedded dashboard
 ```

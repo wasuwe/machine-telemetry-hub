@@ -12,13 +12,14 @@ import (
 	"time"
 
 	"github.com/wasuwe/machine-telemetry-hub/internal/hub"
+	"github.com/wasuwe/machine-telemetry-hub/internal/store"
 	"github.com/wasuwe/machine-telemetry-hub/internal/telemetry"
 )
 
 func newTestServer(t *testing.T) (*httptest.Server, *hub.Hub) {
 	t.Helper()
 	h := hub.New([]telemetry.Machine{{ID: "M01", Name: "Press 01", IdealCycle: time.Second}}, time.Now)
-	srv := httptest.NewServer(NewHandler(h))
+	srv := httptest.NewServer(NewHandler(h, store.New(10)))
 	t.Cleanup(srv.Close)
 	return srv, h
 }
@@ -106,5 +107,31 @@ func readData(t *testing.T, r *bufio.Reader) hub.Snapshot {
 			}
 			return snap
 		}
+	}
+}
+
+func TestReadingsAPI(t *testing.T) {
+	h := hub.New([]telemetry.Machine{{ID: "M01", Name: "Press 01", IdealCycle: time.Second}}, time.Now)
+	st := store.New(10)
+	for range 3 {
+		st.Add(telemetry.Event{MachineID: "M01", Kind: telemetry.EventShot, At: time.Now(), Good: true, CycleTime: time.Second})
+	}
+	srv := httptest.NewServer(NewHandler(h, st))
+	t.Cleanup(srv.Close)
+
+	res, err := http.Get(srv.URL + "/api/readings?after=1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	var body struct {
+		Total int64           `json:"total"`
+		Rows  []store.Reading `json:"rows"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Total != 3 || len(body.Rows) != 2 || body.Rows[0].ID != 2 {
+		t.Fatalf("got total %d, rows %+v", body.Total, body.Rows)
 	}
 }

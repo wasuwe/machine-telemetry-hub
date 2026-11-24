@@ -31,6 +31,29 @@
   <div class="kpi"><span class="kpi-label">Good rate</span><span class="kpi-value" id="k-good">–</span></div>
 </section>
 
+<section class="pipe" aria-labelledby="pipe-title">
+  <header class="pipe-head">
+    <h2 id="pipe-title">Data path</h2>
+    <p class="pipe-note">Demo: each press has an IoT sensor that sends a reading for every part and every state change. The sensors and gateway are simulated, and the database is an in-memory table that keeps the last 500 readings.</p>
+  </header>
+  <div class="pipe-body">
+    <div class="pipe-flow" id="pipe-flow">
+      <div class="node" data-node="machine"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V3h14v18"/><path d="M12 3v3"/><path d="M8 6h8v4H8z"/><path d="M8 16h8"/></svg><b>Presses</b><span id="n-machines">–</span></div>
+      <div class="node" data-node="sensor"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11h10v10H7z"/><path d="M10 16h4"/><path d="M9.5 7.5a3.5 3.5 0 0 1 5 0"/><path d="M7 5a7 7 0 0 1 10 0"/></svg><b>IoT sensor</b><span>counts parts, reads state</span></div>
+      <div class="node" data-node="gateway"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13h18v7H3z"/><path d="M7 16.5h2"/><path d="M12 16.5h2"/><path d="M17 13V7"/><path d="M14.5 5a3.5 3.5 0 0 1 5 0"/></svg><b>Gateway</b><span>forwards readings</span></div>
+      <div class="node" data-node="db"><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg><b>Database</b><span><span id="n-rows">0</span> rows written</span></div>
+      <div class="node" data-node="app"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h18v13H3z"/><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 13l3-3 3 2 4-5"/></svg><b>Dashboard</b><span>reads new rows every 1s</span></div>
+    </div>
+    <div class="pipe-table">
+      <h3>Latest rows <span>read from the database</span></h3>
+      <table>
+        <thead><tr><th>#</th><th>Time</th><th>Machine</th><th>Reading</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
 <main class="grid" id="grid"></main>
 
 <template id="card-tpl">
@@ -40,7 +63,10 @@
         <h2 class="name"></h2>
         <span class="since"></span>
       </div>
-      <span class="badge"></span>
+      <div class="head-right">
+        <span class="iot" title="IoT sensor: lights up when it sends a reading"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 13.5a3.5 3.5 0 0 1 5 0"/><path d="M7 11a7 7 0 0 1 10 0"/><path d="M12 17h.01"/></svg></span>
+        <span class="badge"></span>
+      </div>
     </header>
     <div class="oee">
       <span class="oee-value"></span>
