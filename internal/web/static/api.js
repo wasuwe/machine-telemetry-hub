@@ -1,28 +1,33 @@
-// Tabs (Dashboard / API) and the API tab: demo keys, endpoint and status-code tables, and a console.
+// Tabs (LINE / API) and the API reference: key, endpoint and status-code tables, and the console.
 (() => {
-  // ---- Tabs: #api in the URL opens the API tab, so the link can be shared ----
-  const tabs = [...document.querySelectorAll('[role="tab"]')];
+  const $ = (id) => document.getElementById(id);
 
-  function select(tab, focus) {
+  // ---- Tabs. "#api" or a "#ref-…" anchor in the URL opens the API tab ----
+  const tabs = [...document.querySelectorAll('[role="tab"]')];
+  function select(tab) {
     for (const t of tabs) {
       const on = t === tab;
       t.setAttribute("aria-selected", on);
       t.tabIndex = on ? 0 : -1;
-      document.getElementById(t.getAttribute("aria-controls")).hidden = !on;
+      $(t.getAttribute("aria-controls")).hidden = !on;
     }
-    if (focus) tab.focus();
   }
-  const fromHash = () => select(location.hash === "#api" ? tabs[1] : tabs[0], false);
+  const isApiHash = () => location.hash === "#api" || location.hash.startsWith("#ref-");
+  const fromHash = () => select(isApiHash() ? tabs[1] : tabs[0]);
 
   for (const t of tabs) {
     t.addEventListener("click", () => {
       history.replaceState(null, "", t.id === "tab-api" ? "#api" : location.pathname);
-      select(t, false);
+      select(t);
     });
     t.addEventListener("keydown", (e) => { // arrow keys move between tabs (WAI-ARIA tabs pattern)
       const i = tabs.indexOf(t);
-      const next = e.key === "ArrowRight" ? tabs[(i + 1) % tabs.length] : e.key === "ArrowLeft" ? tabs[(i - 1 + tabs.length) % tabs.length] : null;
-      if (next) { e.preventDefault(); next.click(); next.focus(); }
+      const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+      if (!step) return;
+      e.preventDefault();
+      const next = tabs[(i + step + tabs.length) % tabs.length];
+      next.click();
+      next.focus();
     });
   }
   addEventListener("hashchange", fromHash);
@@ -30,64 +35,63 @@
 
   // ---- Reference data ----
   const origin = location.origin;
-  document.getElementById("base-url").textContent = `${origin}/api/v1`;
+  const FULL = "Full access";
 
-  const keyNotes = {
-    "Full access": "200 responses from every endpoint",
-    "Readings only": "403 on /machines (missing scope), 200 on /readings",
-    "Low rate limit": "429 after 5 requests in a minute",
+  const keyResult = {
+    "Full access": "200 everywhere",
+    "Readings only": "403 on /machines, 200 on /readings",
+    "Low rate limit": "429 from the 6th call in a minute",
     "Revoked": "401 api_key_revoked",
   };
 
   const endpoints = [
-    { path: "/api/v1/machines", scope: "machines:read", text: "All machines: state, parts, OEE factors. <code>meta.summary</code> has plant totals." },
-    { path: "/api/v1/machines/M03", scope: "machines:read", text: "One machine by ID (<code>M01</code>…<code>M12</code>)." },
-    { path: "/api/v1/readings?after=0&limit=20", scope: "readings:read", text: "Rows stored by the IoT sensors, oldest first. Pass <code>meta.nextAfter</code> as <code>after</code> on the next call to get only new rows." },
-    { path: "/api/v1/status/503", scope: "none", text: "Test endpoint: returns the code you ask for, so you can test your error handling." },
+    { path: "/api/v1/machines", scope: "machines:read", text: "Every press: state, parts, OEE factors. Plant totals in <code>meta.summary</code>." },
+    { path: "/api/v1/machines/M03", scope: "machines:read", text: "One press, <code>M01</code>–<code>M12</code>." },
+    { path: "/api/v1/readings?after=0&limit=20", scope: "readings:read", text: "Sensor rows, oldest first. Send <code>meta.nextAfter</code> back as <code>after</code> to get only new rows." },
+    { path: "/api/v1/status/503", scope: "–", text: "Returns the status you ask for. For testing error handling." },
   ];
 
-  const FULL = "Full access";
   const codes = [
-    { code: 200, name: "OK", when: "The request worked. The body has <code>data</code> and <code>meta</code>.", try: { path: "/api/v1/machines", key: FULL } },
-    { code: 204, name: "No Content", when: "CORS preflight (<code>OPTIONS</code>) and the test endpoint. No body.", try: { method: "OPTIONS", path: "/api/v1/machines", key: "" } },
-    { code: 400, name: "Bad Request", when: "A query parameter is not valid, e.g. <code>limit=0</code> or <code>after=abc</code>.", try: { path: "/api/v1/readings?limit=0", key: FULL } },
-    { code: 401, name: "Unauthorized", when: "No key, an unknown key, or a revoked key. Has a <code>WWW-Authenticate</code> header.", try: { path: "/api/v1/machines", key: "" } },
-    { code: 403, name: "Forbidden", when: "The key is valid but lacks the scope, e.g. the readings-only key on <code>/machines</code>.", try: { path: "/api/v1/machines", key: "Readings only" } },
-    { code: 404, name: "Not Found", when: "Unknown machine ID or unknown path.", try: { path: "/api/v1/machines/M99", key: FULL } },
-    { code: 405, name: "Method Not Allowed", when: "Anything other than <code>GET</code>, <code>HEAD</code> or <code>OPTIONS</code>. The <code>Allow</code> header lists what works.", try: { method: "POST", path: "/api/v1/machines", key: FULL } },
-    { code: 429, name: "Too Many Requests", when: "The key used up its per-minute limit. Wait for <code>Retry-After</code> seconds.", try: { path: "/api/v1/machines", key: "Low rate limit", repeat: 6 } },
-    { code: 500, name: "Internal Server Error", when: "A bug on the server. Retry later and send the <code>requestId</code> with your report. Test it with <code>/status/500</code>.", try: { path: "/api/v1/status/500", key: "" } },
-    { code: 503, name: "Service Unavailable", when: "The server is overloaded or restarting. Retry after <code>Retry-After</code>. Test it with <code>/status/503</code>.", try: { path: "/api/v1/status/503", key: "" } },
+    { code: 200, name: "OK", when: "Request worked. Body: <code>data</code>, <code>meta</code>.", t: { path: "/api/v1/machines", key: FULL } },
+    { code: 204, name: "No Content", when: "CORS preflight (<code>OPTIONS</code>).", t: { method: "OPTIONS", path: "/api/v1/machines", key: "" } },
+    { code: 400, name: "Bad Request", when: "Bad query parameter: <code>limit=0</code>, <code>after=abc</code>.", t: { path: "/api/v1/readings?limit=0", key: FULL } },
+    { code: 401, name: "Unauthorized", when: "No key, unknown key, or revoked key.", t: { path: "/api/v1/machines", key: "" } },
+    { code: 403, name: "Forbidden", when: "Valid key without the scope.", t: { path: "/api/v1/machines", key: "Readings only" } },
+    { code: 404, name: "Not Found", when: "Unknown press or path.", t: { path: "/api/v1/machines/M99", key: FULL } },
+    { code: 405, name: "Method Not Allowed", when: "Anything but <code>GET</code>, <code>HEAD</code>, <code>OPTIONS</code>. See <code>Allow</code>.", t: { method: "POST", path: "/api/v1/machines", key: FULL } },
+    { code: 429, name: "Too Many Requests", when: "Per-minute limit used up. Wait <code>Retry-After</code> seconds.", t: { path: "/api/v1/machines", key: "Low rate limit", repeat: 6 } },
+    { code: 500, name: "Internal Server Error", when: "Server bug. Retry later; report the <code>requestId</code>. Test endpoint only.", t: { path: "/api/v1/status/500", key: "" } },
+    { code: 503, name: "Service Unavailable", when: "Overloaded or restarting. Retry after <code>Retry-After</code>. Test endpoint only.", t: { path: "/api/v1/status/503", key: "" } },
   ];
 
   // ---- Console ----
-  const form = document.getElementById("console-form");
-  const methodEl = document.getElementById("c-method");
-  const pathEl = document.getElementById("c-path");
-  const keyEl = document.getElementById("c-key");
-  const sendBtn = document.getElementById("c-send");
-  const curlEl = document.getElementById("c-curl");
-  const out = document.getElementById("c-response");
+  const methodEl = $("c-method");
+  const pathEl = $("c-path");
+  const keyEl = $("c-key");
+  const sendBtn = $("c-send");
+  const curlEl = $("c-curl");
+  const out = $("c-response");
+  const consoleEl = $("console");
   const keyByName = new Map();
   const WRONG = "mth_test_does_not_exist";
 
   function curl(method, path, key) {
-    const parts = ["curl -i"];
-    if (method !== "GET") parts.push(`-X ${method}`);
+    const parts = [method === "HEAD" ? "curl -I" : "curl -i"];
+    if (method !== "GET" && method !== "HEAD") parts.push(`-X ${method}`);
     if (key) parts.push(`-H "Authorization: Bearer ${key}"`);
     parts.push(`"${origin}${path}"`);
     return parts.join(" \\\n  ");
   }
-  const showCurl = () => { curlEl.textContent = curl(methodEl.value, pathEl.value, keyEl.value); };
+  const showCurl = () => { curlEl.textContent = `$ ${curl(methodEl.value, pathEl.value, keyEl.value)}`; };
 
-  function el(tag, cls, text) {
-    const e = document.createElement(tag);
-    if (cls) e.className = cls;
-    if (text != null) e.textContent = text;
-    return e;
+  const SHOWN_HEADERS = ["content-type", "allow", "www-authenticate", "ratelimit-limit", "ratelimit-remaining", "ratelimit-reset", "retry-after", "x-request-id"];
+
+  function span(cls, text) {
+    const s = document.createElement("span");
+    if (cls) s.className = cls;
+    s.textContent = text;
+    return s;
   }
-
-  const SHOWN_HEADERS = ["content-type", "ratelimit-limit", "ratelimit-remaining", "ratelimit-reset", "retry-after", "www-authenticate", "allow", "x-request-id"];
 
   async function send() {
     const method = methodEl.value;
@@ -98,108 +102,105 @@
     const t0 = performance.now();
     try {
       const res = await fetch(path, { method, headers, cache: "no-store" });
-      const ms = Math.round(performance.now() - t0);
       const text = await res.text();
-      render(res, ms, text);
+      render(res, Math.round(performance.now() - t0), text);
     } catch (err) {
-      out.replaceChildren(el("p", "response-empty", `Request failed: ${err.message}`));
+      out.replaceChildren(span("s5", `request failed: ${err.message}`));
     } finally {
       sendBtn.disabled = false;
     }
   }
 
+  // Prints the response the way curl -i would.
   function render(res, ms, text) {
-    const head = el("div", "response-head");
-    const pill = el("span", `status s${String(res.status)[0]}xx`, `${res.status} ${res.statusText || ""}`.trim());
-    head.append(pill, el("span", "muted", `${ms} ms`));
-
-    const hdrs = el("dl", "headers");
+    const parts = [
+      span(`s${String(res.status)[0]}`, `HTTP ${res.status} ${res.statusText}`.trim()),
+      span("dim", `   ${ms} ms\n`),
+    ];
     for (const name of SHOWN_HEADERS) {
       const v = res.headers.get(name);
-      if (v == null) continue;
-      hdrs.append(el("dt", null, name), el("dd", null, v));
+      if (v != null) parts.push(span("h", `${name}: `), span(null, `${v}\n`));
     }
-
     let body = text;
     try { body = JSON.stringify(JSON.parse(text), null, 2); } catch { /* not JSON */ }
-    const pre = el("pre", "code body", body || "(no body)");
-
-    out.replaceChildren(head, hdrs, pre);
+    parts.push(span(null, `\n${body || ""}`));
+    out.replaceChildren(...parts);
   }
 
   async function run(t) {
     methodEl.value = t.method || "GET";
     pathEl.value = t.path;
-    keyEl.value = t.key === "" ? "" : keyByName.get(t.key) ?? "";
+    keyEl.value = t.key ? keyByName.get(t.key) ?? "" : "";
     showCurl();
-    document.querySelector(".console").scrollIntoView({ block: "nearest", behavior: "smooth" });
+    setOpen(true);
+    consoleEl.scrollIntoView({ block: "nearest", behavior: "smooth" }); // only scrolls when the console is not docked
     for (let i = 0; i < (t.repeat || 1); i++) await send();
   }
 
-  function tryButton(t, label) {
-    const b = el("button", "try", "Try");
+  function runButton(t, label) {
+    const b = document.createElement("button");
     b.type = "button";
+    b.className = "run";
+    b.textContent = "run ›";
     b.setAttribute("aria-label", label);
     b.addEventListener("click", () => run(t));
     return b;
   }
 
-  form.addEventListener("submit", (e) => { e.preventDefault(); send(); });
+  function setOpen(open) {
+    consoleEl.classList.toggle("min", !open);
+    $("c-toggle").textContent = open ? "HIDE" : "SHOW";
+    $("c-toggle").setAttribute("aria-expanded", open);
+  }
+  $("c-toggle").addEventListener("click", () => setOpen(consoleEl.classList.contains("min")));
+
+  $("console-form").addEventListener("submit", (e) => { e.preventDefault(); send(); });
   for (const x of [methodEl, pathEl, keyEl]) x.addEventListener("input", showCurl);
 
-  // ---- Fill the tables ----
-  function fillStatic() {
-    const eb = document.getElementById("endpoints-body");
-    for (const ep of endpoints) {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `<td><code>GET ${ep.path}</code><span class="scope">scope: ${ep.scope === "none" ? "no key needed" : ep.scope}</span></td><td>${ep.text}</td><td></td>`;
-      const key = ep.scope === "none" ? "" : FULL;
-      tr.lastElementChild.append(tryButton({ path: ep.path, key }, `Try GET ${ep.path}`));
-      eb.append(tr);
-    }
-    const cb = document.getElementById("codes-body");
-    for (const c of codes) {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `<td><span class="status s${String(c.code)[0]}xx">${c.code}</span></td><td>${c.name}</td><td>${c.when}</td><td></td>`;
-      tr.lastElementChild.append(tryButton(c.try, `Try ${c.code} ${c.name}`));
-      cb.append(tr);
-    }
+  // ---- Tables ----
+  for (const ep of endpoints) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td><code>GET ${ep.path}</code></td><td><code>${ep.scope}</code></td><td>${ep.text}</td><td></td>`;
+    tr.lastElementChild.append(runButton({ path: ep.path, key: ep.scope === "–" ? "" : FULL }, `Run GET ${ep.path}`));
+    $("endpoints-body").append(tr);
+  }
+  for (const c of codes) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td class="code code-${String(c.code)[0]}">${c.code}</td><td><b>${c.name}.</b> ${c.when}</td><td></td>`;
+    tr.lastElementChild.append(runButton(c.t, `Run ${c.code} ${c.name}`));
+    $("codes-body").append(tr);
   }
 
   async function loadKeys() {
-    const res = await fetch("api/demo-keys", { cache: "no-store" });
-    const keys = await res.json();
-    const kb = document.getElementById("keys-body");
-    keyEl.append(new Option("No key", ""));
+    const keys = await (await fetch("api/demo-keys", { cache: "no-store" })).json();
+    keyEl.append(new Option("no key", ""));
     for (const k of keys) {
       keyByName.set(k.name, k.key);
-      keyEl.append(new Option(`${k.name} · ${k.key}`, k.key));
+      keyEl.append(new Option(`${k.key}  (${k.name.toLowerCase()})`, k.key));
 
       const tr = document.createElement("tr");
-      const keyCell = el("td");
-      const copy = el("button", "copy", "Copy");
-      copy.type = "button";
-      copy.setAttribute("aria-label", `Copy ${k.name} key`);
-      copy.addEventListener("click", async () => {
-        try { await navigator.clipboard.writeText(k.key); copy.textContent = "Copied"; }
-        catch { copy.textContent = "Select it"; }
-        setTimeout(() => { copy.textContent = "Copy"; }, 1200);
+      tr.innerHTML = `<td><code></code></td><td></td><td class="n"></td><td></td><td></td>`;
+      tr.children[0].firstChild.textContent = k.key;
+      tr.children[1].textContent = k.scopes.join(" ");
+      tr.children[2].textContent = k.revoked ? "–" : `${k.perMinute}/min`;
+      tr.children[3].textContent = keyResult[k.name] || "";
+      const cp = document.createElement("button");
+      cp.type = "button";
+      cp.className = "run";
+      cp.textContent = "copy";
+      cp.setAttribute("aria-label", `Copy ${k.name} key`);
+      cp.addEventListener("click", async () => {
+        try { await navigator.clipboard.writeText(k.key); cp.textContent = "copied"; } catch { cp.textContent = "select it"; }
+        setTimeout(() => { cp.textContent = "copy"; }, 1200);
       });
-      keyCell.append(el("b", null, k.name), el("br"), el("code", null, k.key), " ", copy);
-      tr.append(
-        keyCell,
-        el("td", null, k.scopes.join(", ")),
-        el("td", null, `${k.perMinute}/min`),
-        el("td", null, keyNotes[k.name] || ""),
-      );
-      kb.append(tr);
+      tr.children[4].append(cp, runButton({ path: k.scopes.includes("machines:read") ? "/api/v1/machines" : "/api/v1/readings", key: k.name }, `Run with ${k.name} key`));
+      $("keys-body").append(tr);
     }
-    keyEl.append(new Option("Wrong key", WRONG));
+    keyEl.append(new Option(`${WRONG}  (unknown)`, WRONG));
     keyEl.value = keyByName.get(FULL) || "";
-    document.getElementById("quick-curl").textContent = curl("GET", "/api/v1/machines", keyByName.get(FULL));
+    $("auth-example").textContent = `GET /api/v1/machines HTTP/1.1\nHost: ${location.host}\nAuthorization: Bearer ${keyByName.get(FULL)}`;
     showCurl();
   }
 
-  fillStatic();
-  loadKeys().catch(() => { document.getElementById("keys-body").innerHTML = "<tr><td colspan=4>Could not load the demo keys.</td></tr>"; });
+  loadKeys().catch(() => { $("keys-body").innerHTML = '<tr><td colspan="5">Could not load the test keys.</td></tr>'; });
 })();

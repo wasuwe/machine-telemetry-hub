@@ -1,75 +1,96 @@
-// Live dashboard: listens to /events (Server-Sent Events) and updates cards in place.
+// Line view: machine table fed by /events (Server-Sent Events), and the data path
+// fed by /api/readings (rows read back from the store once a second).
 (() => {
-  const grid = document.getElementById("grid");
-  const tpl = document.getElementById("card-tpl");
-  const conn = document.getElementById("conn");
-  const connText = document.getElementById("conn-text");
-  const cards = new Map(); // machine id -> card element
+  const $ = (id) => document.getElementById(id);
+  const tbody = $("machines");
+  const rows = new Map(); // machine id -> <tr>
+  const names = new Map(); // machine id -> "Press 01 · 80T"
 
-  const pct = (v) => `${Math.round(v * 100)}%`;
+  const pct1 = (v) => (v * 100).toFixed(1);
+  const pct0 = (v) => Math.round(v * 100);
   const num = (v) => v.toLocaleString("en-US");
+  const STATE_SHORT = { RUNNING: "RUN", IDLE: "IDLE", DOWN: "DOWN" };
 
-  function ago(iso) {
+  function dur(iso) {
     const s = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
     if (s < 60) return `${s}s`;
     const m = Math.floor(s / 60);
-    return `${m}m ${s % 60}s`;
+    if (m < 60) return `${m}m${String(s % 60).padStart(2, "0")}`;
+    return `${Math.floor(m / 60)}h${String(m % 60).padStart(2, "0")}`;
   }
 
-  function cardFor(m) {
-    let card = cards.get(m.id);
-    if (!card) {
-      card = tpl.content.firstElementChild.cloneNode(true);
-      card.querySelector(".name").textContent = m.name;
-      grid.appendChild(card);
-      cards.set(m.id, card);
+  function rowFor(m) {
+    let tr = rows.get(m.id);
+    if (!tr) {
+      tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td class="id"></td>
+        <td class="press"></td>
+        <td><span class="state"><span class="w"></span><span class="dur"></span></span></td>
+        <td class="n"><span class="oee-cell"><span class="meter"><i></i></span><span class="v"></span></span></td>
+        <td class="n opt a"></td>
+        <td class="n opt p"></td>
+        <td class="n opt q"></td>
+        <td class="n parts"></td>
+        <td class="n opt ngc"></td>
+        <td class="n opt cyc"></td>
+        <td><span class="tx" title="Lights when this press's sensor sends a reading"></span></td>`;
+      tr.querySelector(".id").textContent = m.id;
+      tr.querySelector(".press").textContent = m.name.split(" · ")[1] || "";
+      tbody.appendChild(tr);
+      rows.set(m.id, tr);
     }
-    return card;
+    return tr;
   }
 
   function renderMachine(m) {
-    const card = cardFor(m);
-    card.dataset.state = m.state;
-    card.querySelector(".badge").textContent = m.state;
-    card.querySelector(".since").textContent = `${m.state.toLowerCase()} for ${ago(m.stateSince)}`;
-    card.querySelector(".oee-value").textContent = pct(m.oee);
-    for (const el of card.querySelectorAll(".factor")) {
-      const v = m[el.dataset.f];
-      el.querySelector("i").style.width = pct(v);
-      el.querySelector("b").textContent = pct(v);
+    const tr = rowFor(m);
+    const q = (sel) => tr.querySelector(sel);
+    tr.className = m.state;
+    q(".state .w").textContent = STATE_SHORT[m.state] || m.state;
+    q(".state .dur").textContent = dur(m.stateSince);
+    q(".oee-cell .v").textContent = pct1(m.oee);
+    q(".meter i").style.width = `${pct0(m.oee)}%`;
+    q(".a").textContent = pct0(m.availability);
+    q(".p").textContent = pct0(m.performance);
+    q(".q").textContent = pct0(m.quality);
+    q(".parts").textContent = num(m.total);
+    const ng = m.total - m.good;
+    q(".ngc").textContent = ng;
+    q(".ngc").classList.toggle("ng", ng > 0);
+    const ideal = (m.idealCycleMs / 1000).toFixed(2);
+    const cyc = q(".cyc");
+    if (m.lastCycleMs) {
+      cyc.textContent = `${(m.lastCycleMs / 1000).toFixed(2)} / ${ideal}`;
+      cyc.classList.toggle("slow", m.lastCycleMs > m.idealCycleMs * 1.2);
+    } else {
+      cyc.textContent = `– / ${ideal}`;
     }
-    card.querySelector(".parts").textContent = num(m.total);
-    card.querySelector(".cycle").textContent = m.lastCycleMs
-      ? `cycle ${(m.lastCycleMs / 1000).toFixed(2)}s / ideal ${(m.idealCycleMs / 1000).toFixed(1)}s`
-      : `ideal ${(m.idealCycleMs / 1000).toFixed(1)}s`;
   }
-
-  const names = new Map(); // machine id -> display name
 
   function render(snap) {
     for (const m of snap.machines) names.set(m.id, m.name);
-    document.getElementById("n-machines").textContent = `${snap.machines.length} machines`;
     const s = snap.summary;
-    document.getElementById("k-oee").textContent = pct(s.avgOee);
-    document.getElementById("k-running").textContent = s.running;
-    document.getElementById("k-idle").textContent = s.idle;
-    document.getElementById("k-down").textContent = s.down;
-    document.getElementById("k-total").textContent = num(s.total);
-    document.getElementById("k-good").textContent = s.total ? pct(s.good / s.total) : "–";
+    $("k-oee").textContent = `${pct1(s.avgOee)}%`;
+    $("k-running").textContent = s.running;
+    $("k-idle").textContent = s.idle;
+    $("k-down").textContent = s.down;
+    $("k-total").textContent = num(s.total);
+    $("k-good").textContent = s.total ? `${pct1(s.good / s.total)}%` : "–";
+    $("clock").textContent = new Date(snap.at).toLocaleTimeString("en-GB", { hour12: false });
     snap.machines.forEach(renderMachine);
   }
 
+  const conn = $("conn");
   function setConn(state, text) {
     conn.className = `conn ${state}`;
-    connText.textContent = text;
+    $("conn-text").textContent = text;
   }
 
-  // Theme toggle: Control room (dark, default) or Shop floor (light), remembered per browser.
+  // Theme: Control room (dark, default) or Shop floor (light), remembered per browser.
   const root = document.documentElement;
-  const toggle = document.getElementById("theme-toggle");
-  function showTheme() {
-    toggle.textContent = root.dataset.theme === "light" ? "Dark theme" : "Light theme";
-  }
+  const toggle = $("theme-toggle");
+  const showTheme = () => { toggle.textContent = root.dataset.theme === "light" ? "DARK" : "LIGHT"; };
   toggle.addEventListener("click", () => {
     root.dataset.theme = root.dataset.theme === "light" ? "dark" : "light";
     try { localStorage.setItem("theme", root.dataset.theme); } catch { /* storage blocked: still switches */ }
@@ -78,33 +99,28 @@
   showTheme();
 
   // ---- Data path ----
-  // Every second, read the rows written since the last read from /api/readings,
-  // then replay them: each reading travels press -> sensor -> gateway -> database,
-  // and one query goes database -> dashboard before the rows appear in the table.
-  const flow = document.getElementById("pipe-flow");
-  const node = (n) => flow.querySelector(`[data-node="${n}"]`);
-  const rowsEl = document.getElementById("rows");
-  const rowCount = document.getElementById("n-rows");
+  // Every second, read the rows written since the last read, then replay them:
+  // each reading travels press -> sensor -> gateway -> DB, then one query goes
+  // DB -> screen and the rows are added to the log.
+  const flow = $("pipe-flow");
+  const stopEl = (n) => flow.querySelector(`[data-node="${n}"]`);
+  const logEl = $("log");
   const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
-  const MAX_TABLE_ROWS = 8;
-  const MAX_PACKETS = 10; // per batch; extra rows are still stored and listed, just not animated
-  const HOP_MS = 380;
+  const LOG_LINES = 8;
+  const MAX_PACKETS = 10; // per batch; the rest are still logged, just not animated
+  const HOP_MS = 340;
+  const WIRE_Y = 30; // px from the top of .wire; matches .wire::before in style.css
   let lastId = 0;
   let written = 0;
+  let rateFrom = null; // { t, total } for rows/s
 
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-  const animate = () => !reduceMotion.matches && !document.hidden && flow.offsetParent !== null; // not while the API tab is open
+  const animate = () => !reduceMotion.matches && !document.hidden && flow.offsetParent !== null;
 
-  const LANE = 14; // px from the flow's top (or left edge when stacked); matches --lane in style.css
-  const stacked = matchMedia("(max-width: 520px)");
-
-  // Point on the wire next to a node: above it, or to its left when the nodes are stacked.
-  function stop(el) {
+  function point(n) {
     const f = flow.getBoundingClientRect();
-    const r = el.getBoundingClientRect();
-    return stacked.matches
-      ? [LANE, r.top - f.top + r.height / 2]
-      : [r.left - f.left + r.width / 2, LANE];
+    const r = stopEl(n).getBoundingClientRect();
+    return [r.left - f.left + r.width / 2, WIRE_Y];
   }
 
   function flash(el, cls, ms) {
@@ -112,79 +128,77 @@
     setTimeout(() => el.classList.remove(cls), ms);
   }
 
-  // Moves a small labelled pill through the given nodes; resolves when it arrives.
-  function travel(label, cls, path) {
+  function travel(cls, path) {
     const p = document.createElement("span");
     p.className = `packet ${cls}`;
-    p.textContent = label;
     flow.appendChild(p);
     const frames = path.map((n) => {
-      const [x, y] = stop(node(n));
+      const [x, y] = point(n);
       return { transform: `translate(${x}px, ${y}px) translate(-50%, -50%)` };
     });
     const anim = p.animate(frames, { duration: HOP_MS * (path.length - 1), easing: "linear" });
     return anim.finished.catch(() => {}).then(() => p.remove());
   }
 
-  function packetClass(r) {
-    if (r.kind === "state") return `s-${r.state}`;
-    return r.good ? "good" : "scrap";
+  const packetClass = (r) => (r.kind === "state" ? r.state : r.good ? "ok" : "ng");
+
+  function logLine(r) {
+    const li = document.createElement("li");
+    li.className = "new";
+    const d = new Date(r.at);
+    const t = d.toLocaleTimeString("en-GB", { hour12: false });
+    const ms = String(d.getMilliseconds()).padStart(3, "0");
+    let what;
+    if (r.kind === "state") what = `<span class="c-${r.state}">STATE → ${r.state}</span>`;
+    else what = r.good ? `SHOT OK  ${(r.cycleMs / 1000).toFixed(2)}s` : `<span class="ng">SHOT NG</span>  ${(r.cycleMs / 1000).toFixed(2)}s`;
+    li.innerHTML = `<span>#${r.id}</span><span>${t}<span class="ms">.${ms}</span></span><span>${r.machine}</span><span>${what}</span>`;
+    return li;
   }
 
-  function reading(r) {
-    if (r.kind === "state") return `<span class="v-${r.state}">state → ${r.state}</span>`;
-    const cls = r.good ? "good" : "scrap";
-    return `<span class="v-${cls}">${r.good ? "good part" : "scrap"}</span> · ${(r.cycleMs / 1000).toFixed(2)}s`;
-  }
-
-  function time(iso) {
-    const d = new Date(iso);
-    return d.toLocaleTimeString("en-GB", { hour12: false }) + "." + String(d.getMilliseconds()).padStart(3, "0");
-  }
-
-  function showRows(rows) {
-    for (const r of rows) {
-      const tr = document.createElement("tr");
-      tr.className = "new";
-      tr.innerHTML = `<td>${r.id}</td><td>${time(r.at)}</td><td></td><td>${reading(r)}</td>`;
-      tr.children[2].textContent = names.get(r.machine)?.split(" · ")[0] ?? r.machine;
-      rowsEl.prepend(tr);
-    }
-    while (rowsEl.children.length > MAX_TABLE_ROWS) rowsEl.lastElementChild.remove();
+  function showRows(list) {
+    for (const r of list) logEl.prepend(logLine(r));
+    while (logEl.children.length > LOG_LINES) logEl.lastElementChild.remove();
   }
 
   function sent(r) {
-    const card = cards.get(r.machine);
-    if (card) flash(card.querySelector(".iot"), "tx", 400);
+    const tx = rows.get(r.machine)?.querySelector(".tx");
+    if (tx) flash(tx, "on", 350);
   }
 
   function stored(n) {
     written += n;
-    rowCount.textContent = num(written);
+    $("n-rows").textContent = num(written);
   }
 
-  async function replay(rows, total) {
+  function updateRate(total) {
+    const now = performance.now();
+    if (!rateFrom || now - rateFrom.t > 10000) rateFrom = { t: now, total };
+    else if (now - rateFrom.t > 2000) $("rate").textContent = ((total - rateFrom.total) / ((now - rateFrom.t) / 1000)).toFixed(1);
+  }
+
+  async function replay(list, total) {
     if (!animate()) {
-      rows.forEach(sent);
-      written = total - rows.length;
-      stored(rows.length);
-      showRows(rows);
+      list.forEach(sent);
+      written = total - list.length;
+      stored(list.length);
+      showRows(list);
       return;
     }
-    const shown = rows.slice(-MAX_PACKETS);
-    written = Math.max(written, total - rows.length);
-    stored(rows.length - shown.length);
+    const shown = list.slice(-MAX_PACKETS);
+    written = Math.max(written, total - list.length);
+    stored(list.length - shown.length);
     const gap = Math.min(90, 900 / shown.length);
     await Promise.all(shown.map(async (r, i) => {
       await wait(i * gap);
       sent(r);
-      await travel(r.machine, packetClass(r), ["machine", "sensor", "gateway", "db"]);
+      flash(stopEl("machine"), "hit", 200);
+      await travel(packetClass(r), ["machine", "sensor", "gateway", "db"]);
       stored(1);
-      flash(node("db"), "hit", 250);
+      flash(stopEl("db"), "hit", 200);
     }));
-    await travel("SELECT", "query", ["db", "app"]);
-    flash(node("app"), "hit", 300);
-    showRows(rows);
+    await travel("query", ["db", "app"]);
+    flash(stopEl("app"), "hit", 300);
+    showRows(list);
   }
 
   let busy = false;
@@ -194,15 +208,17 @@
     try {
       const res = await fetch(`api/readings?after=${lastId}&limit=50`, { cache: "no-store" });
       if (res.ok) {
-        const { total, rows } = await res.json();
+        const { total, rows: list } = await res.json();
         if (total < lastId) { // server restarted (new container): start over
           lastId = 0;
           written = 0;
-          rowsEl.replaceChildren();
+          rateFrom = null;
+          logEl.replaceChildren();
         }
-        if (rows.length) {
-          lastId = rows[rows.length - 1].id;
-          await replay(rows, total);
+        updateRate(total);
+        if (list.length) {
+          lastId = list[list.length - 1].id;
+          await replay(list, total);
         }
       }
     } catch { /* offline for a moment: try again next tick */ }
@@ -212,7 +228,7 @@
   setInterval(poll, 1000);
 
   const es = new EventSource("events");
-  es.onopen = () => setConn("live", "Live");
+  es.onopen = () => setConn("live", "LIVE");
   es.onmessage = (e) => render(JSON.parse(e.data));
-  es.onerror = () => setConn("lost", "Reconnecting…"); // EventSource retries on its own
+  es.onerror = () => setConn("lost", "RECONNECTING"); // EventSource retries on its own
 })();

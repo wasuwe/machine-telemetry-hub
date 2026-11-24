@@ -9,18 +9,20 @@ A live OEE dashboard for a press line, written in Go. The machines are simulated
 ## What it does
 
 The app simulates 12 stamping presses (80T to 400T). Each one cycles, makes good parts or scrap,
-and now and then breaks down or waits for material. The dashboard updates once a second and shows:
+and now and then breaks down or waits for material. The screen is laid out like a control-room
+board and updates once a second:
 
-- **Plant summary:** average OEE, how many machines are running, idle or down, total parts, and good rate.
-- **Data path:** an animation of where the numbers come from. Each reading travels from the press
-  through its IoT sensor and a gateway into the database. Once a second the dashboard reads the new
-  rows back, and the latest rows are listed next to it. Green is a good part, red is scrap or a breakdown,
-  amber is a machine going idle.
-- **API tab:** docs for the key-protected REST API, demo keys, and a console that sends real requests
-  and shows the status code, headers and body. Every common response code (200, 204, 400, 401, 403,
-  404, 405, 429, 500, 503) has a button that produces it.
-- **One card per machine:** current state and how long it has been in it, OEE, the three factors
-  (Availability, Performance, Quality) as bars, part count, and the last cycle time.
+- **Top bar:** plant OEE, how many presses are running, idle or down, total parts, good rate, and the time of the last update.
+- **LINE tab, machine table:** one row per press in line order. State is a solid block with how long
+  the press has been in it (DOWN blinks, like an andon light). Then OEE, Availability, Performance,
+  Quality, parts, rejects (NG), and last cycle against ideal cycle; a cycle more than 20% over ideal is amber.
+  The square at the end of the row lights up when that press's sensor sends a reading.
+- **LINE tab, data path:** where the numbers come from. Each reading moves along the line
+  PRESS → SENSOR → GATEWAY → DB as a small square (green good part, red reject or breakdown, amber idle).
+  Once a second the screen reads the new rows back from the DB, and they appear in the log on the right.
+- **API tab:** reference for the key-protected REST API, test keys, and a console docked at the bottom
+  that sends real requests and prints the response like `curl -i`. Every common status code
+  (200, 204, 400, 401, 403, 404, 405, 429, 500, 503) has a `run` link that produces it.
 
 The app is a single binary with no external dependencies. The dashboard HTML, CSS and JS are embedded in it.
 
@@ -38,7 +40,7 @@ It is not a production MES. It keeps no history, and all counters start from zer
 
 ## Themes and icons
 
-The dashboard has two themes, switched with the button in the header and remembered per browser:
+The screen has two themes, switched with LIGHT / DARK in the top bar and remembered per browser:
 
 - **Control room** (dark, default) for wall screens and control rooms.
 - **Shop floor** (light) for bright halls, tablets at the machine, and print.

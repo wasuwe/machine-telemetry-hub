@@ -3,119 +3,122 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Machine Telemetry Hub</title>
+<title>Press Line A · Machine Telemetry Hub</title>
 <link rel="stylesheet" href="style.css">
 <script>try { document.documentElement.dataset.theme = localStorage.getItem("theme") || "dark"; } catch { document.documentElement.dataset.theme = "dark"; }</script>
 </head>
 <body>
-<header class="top">
-  <div class="brand">
-    <h1>Machine Telemetry Hub</h1>
-    <span class="sub">Live OEE · Press line</span>
+
+<header class="bar">
+  <div class="ident">
+    <b>PRESS LINE A</b>
+    <span>Machine Telemetry Hub</span>
   </div>
-  <div class="top-right">
-    <button type="button" class="theme-toggle" id="theme-toggle">Light theme</button>
-    <div class="conn" id="conn"><span class="dot"></span><span id="conn-text">Connecting…</span></div>
+  <dl class="plant" aria-label="Plant summary">
+    <div class="big"><dt>OEE</dt><dd id="k-oee">–</dd></div>
+    <div><dt>RUN</dt><dd id="k-running" class="c-RUNNING">–</dd></div>
+    <div><dt>IDLE</dt><dd id="k-idle" class="c-IDLE">–</dd></div>
+    <div><dt>DOWN</dt><dd id="k-down" class="c-DOWN">–</dd></div>
+    <div><dt>PARTS</dt><dd id="k-total">–</dd></div>
+    <div><dt>GOOD</dt><dd id="k-good">–</dd></div>
+  </dl>
+  <div class="status-area">
+    <span id="clock" class="clock">--:--:--</span>
+    <span class="conn" id="conn"><i></i><span id="conn-text">CONNECTING</span></span>
+    <button type="button" class="textbtn" id="theme-toggle">LIGHT</button>
   </div>
 </header>
 
 <nav class="tabs" role="tablist" aria-label="Views">
-  <button type="button" role="tab" id="tab-dash" aria-controls="view-dash" aria-selected="true">Dashboard</button>
+  <button type="button" role="tab" id="tab-dash" aria-controls="view-dash" aria-selected="true">LINE</button>
   <button type="button" role="tab" id="tab-api" aria-controls="view-api" aria-selected="false" tabindex="-1">API</button>
 </nav>
 
 <div id="view-dash" role="tabpanel" aria-labelledby="tab-dash">
-<section class="kpis" aria-label="Plant summary">
-  <div class="kpi kpi-main">
-    <span class="kpi-label">Plant OEE</span>
-    <span class="kpi-value" id="k-oee">–</span>
-  </div>
-  <div class="kpi"><span class="kpi-label">Running</span><span class="kpi-value s-running" id="k-running">–</span></div>
-  <div class="kpi"><span class="kpi-label">Idle</span><span class="kpi-value s-idle" id="k-idle">–</span></div>
-  <div class="kpi"><span class="kpi-label">Down</span><span class="kpi-value s-down" id="k-down">–</span></div>
-  <div class="kpi"><span class="kpi-label">Parts</span><span class="kpi-value" id="k-total">–</span></div>
-  <div class="kpi"><span class="kpi-label">Good rate</span><span class="kpi-value" id="k-good">–</span></div>
-</section>
+  <table class="line">
+    <caption class="sr">Machines on the line, in line order</caption>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Press</th>
+        <th>State</th>
+        <th class="n">OEE</th>
+        <th class="n opt">A</th>
+        <th class="n opt">P</th>
+        <th class="n opt">Q</th>
+        <th class="n">Parts</th>
+        <th class="n opt">NG</th>
+        <th class="n opt">Cycle / ideal s</th>
+        <th class="tx-col"><span class="sr">Sensor sending</span></th>
+      </tr>
+    </thead>
+    <tbody id="machines"></tbody>
+  </table>
 
-<section class="pipe" aria-labelledby="pipe-title">
-  <header class="pipe-head">
-    <h2 id="pipe-title">Data path</h2>
-    <p class="pipe-note">Demo: each press has an IoT sensor that sends a reading for every part and every state change. The sensors and gateway are simulated, and the database is an in-memory table that keeps the last 500 readings.</p>
-  </header>
-  <div class="pipe-body">
-    <div class="pipe-flow" id="pipe-flow">
-      <div class="node" data-node="machine"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V3h14v18"/><path d="M12 3v3"/><path d="M8 6h8v4H8z"/><path d="M8 16h8"/></svg><b>Presses</b><span id="n-machines">–</span></div>
-      <div class="node" data-node="sensor"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11h10v10H7z"/><path d="M10 16h4"/><path d="M9.5 7.5a3.5 3.5 0 0 1 5 0"/><path d="M7 5a7 7 0 0 1 10 0"/></svg><b>IoT sensor</b><span>counts parts, reads state</span></div>
-      <div class="node" data-node="gateway"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13h18v7H3z"/><path d="M7 16.5h2"/><path d="M12 16.5h2"/><path d="M17 13V7"/><path d="M14.5 5a3.5 3.5 0 0 1 5 0"/></svg><b>Gateway</b><span>forwards readings</span></div>
-      <div class="node" data-node="db"><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg><b>Database</b><span><span id="n-rows">0</span> rows written</span></div>
-      <div class="node" data-node="app"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h18v13H3z"/><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 13l3-3 3 2 4-5"/></svg><b>Dashboard</b><span>reads new rows every 1s</span></div>
+  <section class="path" aria-labelledby="path-title">
+    <div class="path-head">
+      <h2 id="path-title">DATA PATH</h2>
+      <span><b id="rate">–</b> rows/s</span>
+      <span><b id="n-rows">0</b> rows stored</span>
+      <span class="note">sensors simulated · in-memory DB keeps last 500 rows</span>
     </div>
-    <div class="pipe-table">
-      <h3>Latest rows <span>read from the database</span></h3>
-      <table>
-        <thead><tr><th>#</th><th>Time</th><th>Machine</th><th>Reading</th></tr></thead>
-        <tbody id="rows"></tbody>
-      </table>
+    <div class="path-body">
+      <div class="wire" id="pipe-flow">
+        <span class="stop" data-node="machine">PRESS</span>
+        <span class="stop" data-node="sensor">SENSOR</span>
+        <span class="stop" data-node="gateway">GATEWAY</span>
+        <span class="stop" data-node="db">DB</span>
+        <span class="stop" data-node="app">SCREEN</span>
+      </div>
+      <ol class="log" id="log" aria-label="Latest rows read from the database"></ol>
     </div>
-  </div>
-</section>
-
-<main class="grid" id="grid"></main>
+  </section>
 </div>
 
 <div id="view-api" role="tabpanel" aria-labelledby="tab-api" hidden>
-  <div class="api-layout">
-    <div class="api-docs">
-      <section class="doc">
-        <h2>Use the API</h2>
-        <p>Read the same live data as the dashboard from your own code: machine state and OEE, and the raw readings stored by the IoT sensors.
-          The API is read-only and returns JSON.</p>
-        <dl class="facts">
-          <dt>Base URL</dt><dd><code id="base-url">/api/v1</code></dd>
-          <dt>Auth</dt><dd>API key in the header <code>Authorization: Bearer &lt;key&gt;</code> (or <code>X-API-Key: &lt;key&gt;</code>)</dd>
-          <dt>Errors</dt><dd><code>application/problem+json</code> (RFC 9457) with a <code>code</code> you can switch on</dd>
-          <dt>Rate limit</dt><dd>Per key, per minute. Every response says how much is left in <code>RateLimit-Remaining</code></dd>
-          <dt>CORS</dt><dd>Open to any origin, so you can call it from a browser page</dd>
-        </dl>
-        <pre class="code" id="quick-curl"></pre>
+  <div class="ref">
+    <nav class="toc" aria-label="API reference">
+      <a href="#ref-auth">Authentication</a>
+      <a href="#ref-keys">Test keys</a>
+      <a href="#ref-endpoints">Endpoints</a>
+      <a href="#ref-errors">Errors</a>
+      <a href="#ref-codes">Status codes</a>
+    </nav>
+
+    <article class="ref-body">
+      <section id="ref-auth">
+        <h2>Authentication</h2>
+        <p>Read-only JSON over HTTPS. Send a key with every request.</p>
+        <pre class="block" id="auth-example"></pre>
+        <p><code>X-API-Key: &lt;key&gt;</code> works too. CORS is open to any origin.</p>
       </section>
 
-      <section class="doc">
-        <h2>Demo keys</h2>
-        <p>These are test keys for this demo, so anyone can use them. A real service shows a secret key once, when you create it, and never on a public page.</p>
-        <div class="table-wrap">
-          <table class="doc-table">
-            <thead><tr><th>Key</th><th>Scopes</th><th>Limit</th><th>Use it to see</th></tr></thead>
-            <tbody id="keys-body"></tbody>
-          </table>
-        </div>
+      <section id="ref-keys">
+        <h2>Test keys</h2>
+        <p>Public on purpose. Each one returns something different.</p>
+        <table class="ref-table">
+          <thead><tr><th>Key</th><th>Scopes</th><th class="n">Limit</th><th>Result</th><th></th></tr></thead>
+          <tbody id="keys-body"></tbody>
+        </table>
       </section>
 
-      <section class="doc">
+      <section id="ref-endpoints">
         <h2>Endpoints</h2>
-        <div class="table-wrap">
-          <table class="doc-table">
-            <thead><tr><th>Request</th><th>Returns</th><th></th></tr></thead>
-            <tbody id="endpoints-body"></tbody>
-          </table>
-        </div>
+        <table class="ref-table">
+          <thead><tr><th>Request</th><th>Scope</th><th>Returns</th><th></th></tr></thead>
+          <tbody id="endpoints-body"></tbody>
+        </table>
       </section>
 
-      <section class="doc">
-        <h2>Response codes</h2>
-        <p>Each code below can be produced on this API. Press <b>Try</b> to send the request in the console.</p>
-        <div class="table-wrap">
-          <table class="doc-table">
-            <thead><tr><th>Code</th><th>Meaning</th><th>When you get it here</th><th></th></tr></thead>
-            <tbody id="codes-body"></tbody>
-          </table>
-        </div>
-      </section>
+      <section id="ref-errors">
+        <h2>Errors</h2>
+        <p>RFC 9457 problem details, <code>application/problem+json</code>. Switch on <code>code</code>, not on <code>detail</code>.
+          <code>requestId</code> equals the <code>X-Request-Id</code> header.</p>
+        <pre class="block">HTTP/1.1 401 Unauthorized
+Content-Type: application/problem+json
+WWW-Authenticate: Bearer realm="telemetryhub", error="invalid_token"
 
-      <section class="doc">
-        <h2>Error body</h2>
-        <p>Every error has the same shape. <code>title</code> is the HTTP status text, <code>code</code> is stable and safe to use in your code, and <code>requestId</code> matches the <code>X-Request-Id</code> header.</p>
-        <pre class="code">{
+{
   "type": "about:blank",
   "title": "Unauthorized",
   "status": 401,
@@ -124,61 +127,40 @@
   "code": "api_key_revoked",
   "requestId": "req_3f9a0c51d2e87b46"
 }</pre>
+        <p>Rate limit: a fixed one-minute window per key. Every authenticated response carries
+          <code>RateLimit-Limit</code>, <code>RateLimit-Remaining</code> and <code>RateLimit-Reset</code>.</p>
       </section>
-    </div>
 
-    <aside class="console" aria-labelledby="console-title">
-      <h2 id="console-title">Try it</h2>
-      <form id="console-form" class="console-form">
-        <div class="console-line">
-          <label class="sr" for="c-method">Method</label>
-          <select id="c-method">
-            <option>GET</option><option>POST</option><option>DELETE</option><option>OPTIONS</option>
-          </select>
-          <label class="sr" for="c-path">Path</label>
-          <input id="c-path" value="/api/v1/machines" spellcheck="false" autocomplete="off">
-        </div>
-        <div class="console-line">
-          <label for="c-key">Key</label>
-          <select id="c-key"></select>
-          <button type="submit" id="c-send">Send</button>
-        </div>
-      </form>
-      <pre class="code curl" id="c-curl"></pre>
-      <div class="response" id="c-response" aria-live="polite">
-        <p class="response-empty">Press <b>Send</b>, or <b>Try</b> next to an endpoint or a response code.</p>
-      </div>
-    </aside>
+      <section id="ref-codes">
+        <h2>Status codes</h2>
+        <table class="ref-table">
+          <thead><tr><th>Code</th><th>When</th><th></th></tr></thead>
+          <tbody id="codes-body"></tbody>
+        </table>
+      </section>
+    </article>
   </div>
-</div>
 
-<template id="card-tpl">
-  <article class="card">
-    <header class="card-head">
-      <div>
-        <h2 class="name"></h2>
-        <span class="since"></span>
-      </div>
-      <div class="head-right">
-        <span class="iot" title="IoT sensor: lights up when it sends a reading"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 13.5a3.5 3.5 0 0 1 5 0"/><path d="M7 11a7 7 0 0 1 10 0"/><path d="M12 17h.01"/></svg></span>
-        <span class="badge"></span>
-      </div>
-    </header>
-    <div class="oee">
-      <span class="oee-value"></span>
-      <span class="oee-label">OEE</span>
+  <section class="console" id="console" aria-labelledby="console-title">
+    <div class="console-bar">
+      <h2 id="console-title">CONSOLE</h2>
+      <form id="console-form" class="console-form">
+        <label class="sr" for="c-method">Method</label>
+        <select id="c-method"><option>GET</option><option>HEAD</option><option>POST</option><option>DELETE</option><option>OPTIONS</option></select>
+        <label class="sr" for="c-path">Path</label>
+        <input id="c-path" value="/api/v1/machines" spellcheck="false" autocomplete="off">
+        <label class="sr" for="c-key">Key</label>
+        <select id="c-key"></select>
+        <button type="submit" id="c-send">SEND</button>
+      </form>
+      <button type="button" class="textbtn" id="c-toggle" aria-expanded="true" aria-controls="console-out">HIDE</button>
     </div>
-    <div class="factors">
-      <div class="factor" data-f="availability"><span>A</span><div class="bar"><i></i></div><b></b></div>
-      <div class="factor" data-f="performance"><span>P</span><div class="bar"><i></i></div><b></b></div>
-      <div class="factor" data-f="quality"><span>Q</span><div class="bar"><i></i></div><b></b></div>
+    <div class="console-out" id="console-out">
+      <pre id="c-curl"></pre>
+      <pre id="c-response" aria-live="polite"><span class="dim">No request yet. Press SEND, or "run" next to an endpoint or a status code.</span></pre>
     </div>
-    <footer class="card-foot">
-      <span><b class="parts"></b> parts</span>
-      <span class="cycle"></span>
-    </footer>
-  </article>
-</template>
+  </section>
+</div>
 
 <script src="app.js"></script>
 <script src="api.js"></script>
