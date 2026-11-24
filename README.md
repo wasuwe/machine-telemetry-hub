@@ -1,38 +1,33 @@
 # Machine Telemetry Hub
 
-A live **OEE (Overall Equipment Effectiveness) dashboard** for a simulated press line, written in Go.
+A live OEE dashboard for a press line, written in Go. The machines are simulated.
 
-Every machine runs in its own goroutine and streams shot and state events into a hub.
-The hub keeps live counters and pushes snapshots to the browser with Server-Sent Events.
-There are no external dependencies: the whole app, dashboard included, is a single binary.
+**Demo:** https://machine-telemetry-hub.vercel.app
 
 <!-- TODO: add a screenshot or GIF: docs/dashboard.gif -->
 
-## Quick start
+## What it does
 
-```bash
-go run ./cmd/telemetryhub
-# open http://localhost:8080
-```
+The app simulates 12 stamping presses (80T to 400T). Each one cycles, makes good parts or scrap,
+and now and then breaks down or waits for material. The dashboard updates once a second and shows:
 
-Options:
+- **Plant summary:** average OEE, how many machines are running, idle or down, total parts, and good rate.
+- **One card per machine:** current state and how long it has been in it, OEE, the three factors
+  (Availability, Performance, Quality) as bars, part count, and the last cycle time.
 
-```bash
-go run ./cmd/telemetryhub -machines 24 -addr :9000 -seed 42
-```
+The app is a single binary with no external dependencies. The dashboard HTML, CSS and JS are embedded in it.
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `-addr` | `:8080` | HTTP listen address |
-| `-machines` | `12` | Number of simulated machines |
-| `-seed` | random | Same seed → same machine behaviour |
+## What it's for
 
-With Docker:
+OEE is the usual number a factory uses to see how much of its planned time turns into good parts.
+This project shows the plumbing behind a live OEE screen:
 
-```bash
-docker build -t telemetryhub .
-docker run --rm -p 8080:8080 telemetryhub
-```
+- a pattern to start from when you build a shop-floor monitor: replace the simulator with real
+  machine data (PLC, MQTT, OPC UA) and keep the hub, the OEE math, and the dashboard;
+- a small, readable example of goroutines, channels, `context` cancellation, and Server-Sent Events in Go;
+- a way to explain OEE to someone: watch a machine go down and see its Availability drop.
+
+It is not a production MES. It keeps no history, and all counters start from zero when the process starts.
 
 ## Themes and icons
 
@@ -57,12 +52,19 @@ An 18-icon line set for factory UIs lives in `internal/web/static/icons/` (see i
  1 goroutine per machine
 ```
 
-- **Simulator** (`internal/simulator`): each machine is a goroutine that cycles, makes good or scrap parts, and sometimes breaks down or waits for material.
-- **Hub** (`internal/hub`): applies events, computes OEE on demand, and fans out snapshots. A slow browser never blocks the hub, because a subscriber that is still busy skips that update.
-- **OEE** (`internal/oee`): pure functions, fully unit-tested.
-- **Web** (`internal/web`): `net/http` with Go 1.22+ routing. Static files are embedded with `embed`.
+1. **Simulator** (`internal/simulator`): each machine runs in its own goroutine. After every cycle it
+   sends a shot event (good or scrap) to a shared channel. It can also send state changes:
+   RUNNING → DOWN (breakdown, 6–20 s) or RUNNING → IDLE (no material, 2–8 s).
+   This is the part a real PLC gateway would replace.
+2. **Hub** (`internal/hub`): the only goroutine that reads the channel. It updates each machine's part
+   counters, current state, and running time. Once a second it computes OEE for every machine
+   and sends the snapshot to every connected browser. If a browser is still busy with the previous
+   snapshot, it skips this one, so one slow client can't hold up the hub.
+3. **OEE** (`internal/oee`): plain functions with no state, covered by unit tests.
+4. **Web** (`internal/web`): `net/http` with Go 1.22+ routing. `/events` streams the snapshots as
+   Server-Sent Events. The browser uses `EventSource`, which reconnects on its own if the connection drops.
 
-Shutdown is graceful: `Ctrl+C` cancels one `context` that stops the machines, the hub, and the open SSE streams.
+`Ctrl+C` cancels one `context`. That stops the machines, the hub, and the open SSE streams, then the HTTP server shuts down.
 
 ### OEE formula
 
@@ -73,6 +75,32 @@ Shutdown is graceful: `Ctrl+C` cancels one `context` that stops the machines, th
 | Quality | good parts ÷ total parts |
 | **OEE** | Availability × Performance × Quality |
 
+With the default settings, machines end up around 55–80% OEE.
+
+## Run it locally
+
+```bash
+go run ./cmd/telemetryhub
+# open http://localhost:8080
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-addr` | `:8080` | HTTP listen address |
+| `-machines` | `12` | Number of simulated machines |
+| `-seed` | random | Same seed → same machine behaviour |
+
+```bash
+go run ./cmd/telemetryhub -machines 24 -addr :9000 -seed 42
+```
+
+With Docker:
+
+```bash
+docker build -t telemetryhub .
+docker run --rm -p 8080:8080 telemetryhub
+```
+
 ## API
 
 | Method | Path | Description |
@@ -81,6 +109,22 @@ Shutdown is graceful: `Ctrl+C` cancels one `context` that stops the machines, th
 | GET | `/api/machines` | Current snapshot (JSON) |
 | GET | `/events` | Live snapshots (Server-Sent Events) |
 | GET | `/healthz` | Liveness probe |
+
+## Deployment (Vercel)
+
+The demo runs on Vercel as a container, built from `Dockerfile.vercel`, which listens on port 80.
+
+```bash
+vercel deploy --prod
+```
+
+Vercel runs containers as serverless functions, not as long-running servers, so the demo behaves a bit differently from a local run:
+
+- After about 5 minutes with no visitors the container stops. The next visitor starts a new simulation from zero.
+- If Vercel runs more than one instance, two visitors may see different numbers.
+- Each SSE connection is closed after 5 minutes. The dashboard shows "Reconnecting…" for a moment and then continues.
+
+To keep the counters running all the time, deploy the normal `Dockerfile` on a host that keeps a process up, such as a VM, Fly.io, or Railway.
 
 ## Project layout
 
@@ -103,8 +147,8 @@ go vet ./...
 
 CI runs gofmt, vet, race tests, build, and staticcheck on every push.
 
-## Ideas for next steps
+## Next steps
 
-- Real input: read from MQTT or OPC UA instead of the simulator
-- Persist history to PostgreSQL / TimescaleDB and show trends
-- Per-shift reset and downtime reason codes
+- Read real machine data from MQTT or OPC UA instead of the simulator
+- Store history in PostgreSQL / TimescaleDB and show trends
+- Reset counters per shift and record downtime reason codes

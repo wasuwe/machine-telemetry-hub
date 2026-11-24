@@ -1,0 +1,17 @@
+# Image used by Vercel (Functions container runtime).
+# Vercel routes traffic to port 80, so the binary listens there.
+# The non-root distroless image cannot bind ports below 1024, so this uses the default (root) variant.
+
+# --- build stage ---
+FROM golang:1.27-alpine AS build
+WORKDIR /src
+COPY go.mod ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/telemetryhub ./cmd/telemetryhub
+
+# --- run stage ---
+FROM gcr.io/distroless/static-debian12
+COPY --from=build /out/telemetryhub /telemetryhub
+EXPOSE 80
+ENTRYPOINT ["/telemetryhub", "-addr", ":80"]
