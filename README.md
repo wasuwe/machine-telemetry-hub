@@ -34,6 +34,16 @@ docker build -t telemetryhub .
 docker run --rm -p 8080:8080 telemetryhub
 ```
 
+## Themes and icons
+
+The dashboard has two themes, switched with the button in the header and remembered per browser:
+
+- **Control room** (dark, default) for wall screens and control rooms.
+- **Shop floor** (light) for bright halls, tablets at the machine, and print.
+
+All colours are CSS custom properties in `internal/web/static/style.css`; the light theme overrides them under `:root[data-theme="light"]`.
+An 18-icon line set for factory UIs lives in `internal/web/static/icons/` (see its README).
+
 ## How it works
 
 ```

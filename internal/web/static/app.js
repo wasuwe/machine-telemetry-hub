@@ -60,6 +60,19 @@
     connText.textContent = text;
   }
 
+  // Theme toggle: Control room (dark, default) or Shop floor (light), remembered per browser.
+  const root = document.documentElement;
+  const toggle = document.getElementById("theme-toggle");
+  function showTheme() {
+    toggle.textContent = root.dataset.theme === "light" ? "Dark theme" : "Light theme";
+  }
+  toggle.addEventListener("click", () => {
+    root.dataset.theme = root.dataset.theme === "light" ? "dark" : "light";
+    try { localStorage.setItem("theme", root.dataset.theme); } catch { /* storage blocked: still switches */ }
+    showTheme();
+  });
+  showTheme();
+
   const es = new EventSource("events");
   es.onopen = () => setConn("live", "Live");
   es.onmessage = (e) => render(JSON.parse(e.data));

@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Machine Telemetry Hub</title>
 <link rel="stylesheet" href="style.css">
+<script>try { document.documentElement.dataset.theme = localStorage.getItem("theme") || "dark"; } catch { document.documentElement.dataset.theme = "dark"; }</script>
 </head>
 <body>
 <header class="top">
@@ -12,7 +13,10 @@
     <h1>Machine Telemetry Hub</h1>
     <span class="sub">Live OEE · Press line</span>
   </div>
-  <div class="conn" id="conn"><span class="dot"></span><span id="conn-text">Connecting…</span></div>
+  <div class="top-right">
+    <button type="button" class="theme-toggle" id="theme-toggle">Light theme</button>
+    <div class="conn" id="conn"><span class="dot"></span><span id="conn-text">Connecting…</span></div>
+  </div>
 </header>
 
 <section class="kpis" aria-label="Plant summary">
