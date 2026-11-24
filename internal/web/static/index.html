@@ -19,6 +19,12 @@
   </div>
 </header>
 
+<nav class="tabs" role="tablist" aria-label="Views">
+  <button type="button" role="tab" id="tab-dash" aria-controls="view-dash" aria-selected="true">Dashboard</button>
+  <button type="button" role="tab" id="tab-api" aria-controls="view-api" aria-selected="false" tabindex="-1">API</button>
+</nav>
+
+<div id="view-dash" role="tabpanel" aria-labelledby="tab-dash">
 <section class="kpis" aria-label="Plant summary">
   <div class="kpi kpi-main">
     <span class="kpi-label">Plant OEE</span>
@@ -55,6 +61,96 @@
 </section>
 
 <main class="grid" id="grid"></main>
+</div>
+
+<div id="view-api" role="tabpanel" aria-labelledby="tab-api" hidden>
+  <div class="api-layout">
+    <div class="api-docs">
+      <section class="doc">
+        <h2>Use the API</h2>
+        <p>Read the same live data as the dashboard from your own code: machine state and OEE, and the raw readings stored by the IoT sensors.
+          The API is read-only and returns JSON.</p>
+        <dl class="facts">
+          <dt>Base URL</dt><dd><code id="base-url">/api/v1</code></dd>
+          <dt>Auth</dt><dd>API key in the header <code>Authorization: Bearer &lt;key&gt;</code> (or <code>X-API-Key: &lt;key&gt;</code>)</dd>
+          <dt>Errors</dt><dd><code>application/problem+json</code> (RFC 9457) with a <code>code</code> you can switch on</dd>
+          <dt>Rate limit</dt><dd>Per key, per minute. Every response says how much is left in <code>RateLimit-Remaining</code></dd>
+          <dt>CORS</dt><dd>Open to any origin, so you can call it from a browser page</dd>
+        </dl>
+        <pre class="code" id="quick-curl"></pre>
+      </section>
+
+      <section class="doc">
+        <h2>Demo keys</h2>
+        <p>These are test keys for this demo, so anyone can use them. A real service shows a secret key once, when you create it, and never on a public page.</p>
+        <div class="table-wrap">
+          <table class="doc-table">
+            <thead><tr><th>Key</th><th>Scopes</th><th>Limit</th><th>Use it to see</th></tr></thead>
+            <tbody id="keys-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="doc">
+        <h2>Endpoints</h2>
+        <div class="table-wrap">
+          <table class="doc-table">
+            <thead><tr><th>Request</th><th>Returns</th><th></th></tr></thead>
+            <tbody id="endpoints-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="doc">
+        <h2>Response codes</h2>
+        <p>Each code below can be produced on this API. Press <b>Try</b> to send the request in the console.</p>
+        <div class="table-wrap">
+          <table class="doc-table">
+            <thead><tr><th>Code</th><th>Meaning</th><th>When you get it here</th><th></th></tr></thead>
+            <tbody id="codes-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="doc">
+        <h2>Error body</h2>
+        <p>Every error has the same shape. <code>title</code> is the HTTP status text, <code>code</code> is stable and safe to use in your code, and <code>requestId</code> matches the <code>X-Request-Id</code> header.</p>
+        <pre class="code">{
+  "type": "about:blank",
+  "title": "Unauthorized",
+  "status": 401,
+  "detail": "This API key was revoked. Create a new one.",
+  "instance": "/api/v1/machines",
+  "code": "api_key_revoked",
+  "requestId": "req_3f9a0c51d2e87b46"
+}</pre>
+      </section>
+    </div>
+
+    <aside class="console" aria-labelledby="console-title">
+      <h2 id="console-title">Try it</h2>
+      <form id="console-form" class="console-form">
+        <div class="console-line">
+          <label class="sr" for="c-method">Method</label>
+          <select id="c-method">
+            <option>GET</option><option>POST</option><option>DELETE</option><option>OPTIONS</option>
+          </select>
+          <label class="sr" for="c-path">Path</label>
+          <input id="c-path" value="/api/v1/machines" spellcheck="false" autocomplete="off">
+        </div>
+        <div class="console-line">
+          <label for="c-key">Key</label>
+          <select id="c-key"></select>
+          <button type="submit" id="c-send">Send</button>
+        </div>
+      </form>
+      <pre class="code curl" id="c-curl"></pre>
+      <div class="response" id="c-response" aria-live="polite">
+        <p class="response-empty">Press <b>Send</b>, or <b>Try</b> next to an endpoint or a response code.</p>
+      </div>
+    </aside>
+  </div>
+</div>
 
 <template id="card-tpl">
   <article class="card">
@@ -85,5 +181,6 @@
 </template>
 
 <script src="app.js"></script>
+<script src="api.js"></script>
 </body>
 </html>

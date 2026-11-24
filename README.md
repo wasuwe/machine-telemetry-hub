@@ -16,6 +16,9 @@ and now and then breaks down or waits for material. The dashboard updates once a
   through its IoT sensor and a gateway into the database. Once a second the dashboard reads the new
   rows back, and the latest rows are listed next to it. Green is a good part, red is scrap or a breakdown,
   amber is a machine going idle.
+- **API tab:** docs for the key-protected REST API, demo keys, and a console that sends real requests
+  and shows the status code, headers and body. Every common response code (200, 204, 400, 401, 403,
+  404, 405, 429, 500, 503) has a button that produces it.
 - **One card per machine:** current state and how long it has been in it, OEE, the three factors
   (Availability, Performance, Quality) as bars, part count, and the last cycle time.
 
@@ -114,11 +117,50 @@ docker run --rm -p 8080:8080 telemetryhub
 
 ## API
 
+### Public API (`/api/v1`, needs a key)
+
+The **API** tab in the dashboard (`/#api`) documents this API and has a console to send requests from the browser.
+
+```bash
+curl -i -H "Authorization: Bearer mth_test_full_7f3a9c2e"   https://machine-telemetry-hub.vercel.app/api/v1/machines
+```
+
+| Request | Scope | Returns |
+|---------|-------|---------|
+| `GET /api/v1/machines` | `machines:read` | All machines, plus plant totals in `meta.summary` |
+| `GET /api/v1/machines/{id}` | `machines:read` | One machine (`M01`…`M12`) |
+| `GET /api/v1/readings?after=<id>&limit=<n>` | `readings:read` | Stored readings, oldest first. Pass `meta.nextAfter` as `after` to get only new rows |
+| `GET /api/v1/status/{code}` | none | Test endpoint: returns the code you ask for |
+
+Demo keys (public on purpose; each one shows a different response):
+
+| Key | Scopes | Limit | Shows |
+|-----|--------|-------|-------|
+| `mth_test_full_7f3a9c2e` | both | 120/min | 200 |
+| `mth_test_readings_4b81d0aa` | `readings:read` | 120/min | 403 on `/machines` |
+| `mth_test_limited_c29e5f13` | both | 5/min | 429 after 5 calls |
+| `mth_test_revoked_0d6e8b71` | both | – | 401 `api_key_revoked` |
+
+How it behaves:
+
+- The key goes in `Authorization: Bearer <key>` or `X-API-Key: <key>`.
+- Checks run in this order: method (405 with `Allow`), key (401 with `WWW-Authenticate`), scope (403),
+  rate limit (429 with `Retry-After`), query parameters (400), resource (404).
+- Errors are RFC 9457 problem details (`application/problem+json`) with an extra `code` field to switch on
+  (`missing_api_key`, `insufficient_scope`, `rate_limited`, …) and a `requestId` that matches the `X-Request-Id` header.
+- Every authenticated response has `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`.
+  The limit is a fixed one-minute window per key, kept in memory. Because the keys are public,
+  everyone using the demo shares the same limits.
+- CORS is open (`Access-Control-Allow-Origin: *`) and `OPTIONS` preflight returns 204.
+
+### Internal endpoints (used by the dashboard, no key)
+
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/` | Dashboard |
 | GET | `/api/machines` | Current snapshot (JSON) |
 | GET | `/api/readings?after=<id>&limit=<n>` | Stored readings with ID > `after`, oldest first (default 50, max 200) |
+| GET | `/api/demo-keys` | The demo keys shown in the API tab |
 | GET | `/events` | Live snapshots (Server-Sent Events) |
 | GET | `/healthz` | Liveness probe |
 
@@ -146,6 +188,7 @@ internal/telemetry/   event and machine types
 internal/simulator/   fake machines (goroutine per machine)
 internal/hub/         live state, OEE snapshots, pub/sub
 internal/store/       in-memory table of the last 500 readings (demo database)
+internal/api/         public /api/v1: keys, scopes, rate limit, problem+json errors
 internal/oee/         OEE calculation
 internal/web/         HTTP handlers + embedded dashboard
 ```

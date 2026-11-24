@@ -9,7 +9,10 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
+	"time"
 
+	"github.com/wasuwe/machine-telemetry-hub/internal/api"
 	"github.com/wasuwe/machine-telemetry-hub/internal/hub"
 	"github.com/wasuwe/machine-telemetry-hub/internal/store"
 )
@@ -22,6 +25,8 @@ var staticFiles embed.FS
 //	GET /              dashboard (static files embedded in the binary)
 //	GET /api/machines  current snapshot as JSON
 //	GET /api/readings  stored rows with id > ?after (at most ?limit, default 50)
+//	GET /api/demo-keys the public demo keys for /api/v1 (shown in the API tab)
+//	    /api/v1/...    public REST API, needs an API key (see package api)
 //	GET /events        live snapshots via Server-Sent Events
 //	GET /healthz       liveness probe
 func NewHandler(h *hub.Hub, st *store.Store) http.Handler {
@@ -43,11 +48,23 @@ func NewHandler(h *hub.Hub, st *store.Store) http.Handler {
 		}
 		writeJSON(w, map[string]any{"total": st.Total(), "rows": st.After(after, limit)})
 	})
+	mux.HandleFunc("GET /api/demo-keys", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, api.DemoKeys)
+	})
 	mux.HandleFunc("GET /events", func(w http.ResponseWriter, r *http.Request) { serveEvents(w, r, h) })
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "ok")
 	})
-	return mux
+	// The v1 API answers every method itself (405 as problem+json, OPTIONS for CORS),
+	// so it sits in front of the mux instead of inside it, where it would clash with "GET /".
+	v1 := api.New(h, st, time.Now).Handler()
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1" || strings.HasPrefix(r.URL.Path, "/api/v1/") {
+			v1.ServeHTTP(w, r)
+			return
+		}
+		mux.ServeHTTP(w, r)
+	})
 }
 
 func writeJSON(w http.ResponseWriter, v any) {

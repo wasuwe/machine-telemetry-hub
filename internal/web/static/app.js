@@ -93,7 +93,7 @@
   let written = 0;
 
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-  const animate = () => !reduceMotion.matches && !document.hidden;
+  const animate = () => !reduceMotion.matches && !document.hidden && flow.offsetParent !== null; // not while the API tab is open
 
   const LANE = 14; // px from the flow's top (or left edge when stacked); matches --lane in style.css
   const stacked = matchMedia("(max-width: 520px)");

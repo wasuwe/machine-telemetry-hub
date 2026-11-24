@@ -135,3 +135,15 @@ func TestReadingsAPI(t *testing.T) {
 		t.Fatalf("got total %d, rows %+v", body.Total, body.Rows)
 	}
 }
+
+func TestV1IsMounted(t *testing.T) {
+	srv, _ := newTestServer(t)
+	res, err := http.Post(srv.URL+"/api/v1/machines", "application/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if res.StatusCode != http.StatusMethodNotAllowed || res.Header.Get("Content-Type") != "application/problem+json" {
+		t.Fatalf("status %d, content type %q", res.StatusCode, res.Header.Get("Content-Type"))
+	}
+}
